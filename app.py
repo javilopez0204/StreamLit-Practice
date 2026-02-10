@@ -1,67 +1,69 @@
 import streamlit as st
-from google import genai
-from google.genai import types
 import time
+from vertexai.preview.generative_models import GenerativeModel
+from vertexai.preview import vision_models # Para modelos de imagen/video
+
+# 1. Usar la librería de Vertex AI directamente es más seguro para Veo
+import vertexai
+from vertexai.preview.vision_models import VideoGenerationModel
 
 # Configuración de página
 st.set_page_config(page_title="PokeVeo Creator", page_icon="🐉")
 
 st.title("🐉 PokéVeo: Entrenador de Video AI")
-st.markdown("¡Hola! Soy tu asistente de IA. Pídeme que genere un video de cualquier Pokémon en una situación épica.")
 
-# --- Inicialización del Cliente de Google Gen AI ---
-# Asegúrate de tener la variable de entorno o estar autenticado
-client = genai.Client(vertexai=True, project="TU_PROYECTO_ID", location="us-central1")
+# --- Inicialización ---
+PROJECT_ID = "TU_PROYECTO_ID" 
+LOCATION = "us-central1"
+vertexai.init(project=PROJECT_ID, location=LOCATION)
 
-# --- Gestión de Historial de Chat ---
-if "messages" not in st. session_state:
+# Cargar el modelo de Veo
+# El ID del modelo suele ser 'veo-001' (verifica disponibilidad en tu consola)
+try:
+    model = VideoGenerationModel.from_pretrained("veo-001")
+except Exception as e:
+    st.error(f"Error cargando el modelo: {e}")
+
+# --- Gestión de Historial ---
+if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Mostrar mensajes previos
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "video_url" in message:
-            st.video(message["video_url"])
+        if "video_path" in message:
+            st.video(message["video_path"])
 
 # --- Input del Usuario ---
-if prompt := st.chat_input("Ej: Un Charizard volando sobre un volcán activo en estilo cinemático"):
-    
-    # Añadir mensaje del usuario al chat
+if prompt := st.chat_input("Pide tu video de Pokémon..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Respuesta del bot
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("🔍 *Invocando a Veo para generar tu video Pokémon...*")
         
         try:
-            # Llamada a Google Veo (Modelo 'veo-001' o similar según disponibilidad)
-            # Nota: Veo suele requerir un proceso asíncrono o de espera
-            operation = client.models.generate_video(
-                model='veo-3.1-fast-generate-preview',
-                prompt=f"A Pokémon video of: {prompt}, high quality, 4k, cinematic animation",
-            )
+            with st.spinner("🎬 Google Veo está creando tu animación... (esto puede tardar)"):
+                # En la SDK de Vertex, el método es generate_video
+                job = model.generate_video(
+                    prompt=f"Cinematic pokemon animation, high quality, 4k: {prompt}",
+                    # Opcional: negative_prompt="blurry, low resolution",
+                    # Opcional: fps=24
+                )
+                
+                # Veo genera un archivo de salida
+                output_file = "pokemon_generated.mp4"
+                job.save(output_file)
             
-            # Simulación de espera de procesamiento (Veo genera videos en segundos/minutos)
-            with st.spinner("Generando frames..."):
-                while not operation.done:
-                    time.sleep(5)
-            
-            video_result = operation.result
-            video_url = video_result.generated_samples[0].video.uri # Depende del formato de salida
-
             message_placeholder.markdown("¡Aquí tienes tu video Pokémon!")
-            st.video(video_url)
+            st.video(output_file)
             
-            # Guardar en historial
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": "¡Video generado con éxito!", 
-                "video_url": video_url
+                "content": "¡Video generado!", 
+                "video_path": output_file
             })
 
         except Exception as e:
-            st.error(f"Hubo un error con Google Veo: {e}")
+            st.error(f"Error detallado: {e}")
