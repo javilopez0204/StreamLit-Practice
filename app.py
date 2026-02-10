@@ -1,56 +1,67 @@
 import streamlit as st
 from google import genai
+from google.genai import types
 import time
 
-# Configuración de la página
-st.set_page_config(page_title="PokéVideo Creator", page_icon="⚡")
-st.title("⚡ PokéVideo Creator AI")
+# Configuración de página
+st.set_page_config(page_title="PokeVeo Creator", page_icon="🐉")
 
-with st.sidebar:
-    st.header("Configuración")
-    api_key = st.text_input("Ingresa tu Gemini API Key:", type="password")
+st.title("🐉 PokéVeo: Entrenador de Video AI")
+st.markdown("¡Hola! Soy tu asistente de IA. Pídeme que genere un video de cualquier Pokémon en una situación épica.")
+
+# --- Inicialización del Cliente de Google Gen AI ---
+# Asegúrate de tener la variable de entorno o estar autenticado
+client = genai.Client(vertexai=True, project="TU_PROYECTO_ID", location="us-central1")
+
+# --- Gestión de Historial de Chat ---
+if "messages" not in st. session_state:
+    st.session_state.messages = []
+
+# Mostrar mensajes previos
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if "video_url" in message:
+            st.video(message["video_url"])
+
+# --- Input del Usuario ---
+if prompt := st.chat_input("Ej: Un Charizard volando sobre un volcán activo en estilo cinemático"):
     
+    # Añadir mensaje del usuario al chat
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-if api_key:
-    # Inicializamos el cliente
-    client = genai.Client(api_key=api_key)
-    
-    user_prompt = st.text_area(
-        "Describe la escena Pokémon:",
-        placeholder="Ejemplo: Un Charizard volando sobre un volcán en estilo anime."
-    )
+    # Respuesta del bot
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        message_placeholder.markdown("🔍 *Invocando a Veo para generar tu video Pokémon...*")
+        
+        try:
+            # Llamada a Google Veo (Modelo 'veo-001' o similar según disponibilidad)
+            # Nota: Veo suele requerir un proceso asíncrono o de espera
+            operation = client.models.generate_video(
+                model='veo-001',
+                prompt=f"A Pokémon video of: {prompt}, high quality, 4k, cinematic animation",
+            )
+            
+            # Simulación de espera de procesamiento (Veo genera videos en segundos/minutos)
+            with st.spinner("Generando frames..."):
+                while not operation.done:
+                    time.sleep(5)
+            
+            video_result = operation.result
+            video_url = video_result.generated_samples[0].video.uri # Depende del formato de salida
 
-    if st.button("¡Lanzar Pokéball! (Generar Video)"):
-        if user_prompt:
-            with st.spinner("⏳ Rotom-PC procesando... Esto puede tomar hasta 2-3 minutos."):
-                try:
-                    # El método correcto para generación de video en el nuevo SDK 
-                    # suele ser a través de .models.generate_content pero especificando
-                    # el modelo Veo si tienes acceso, o usando la función dedicada:
-                    
-                    operation = client.models.generate_video(
-                        model="veo-2",  # Verifica que tengas acceso a este modelo
-                        prompt=user_prompt,
-                    )
+            message_placeholder.markdown("¡Aquí tienes tu video Pokémon!")
+            st.video(video_url)
+            
+            # Guardar en historial
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": "¡Video generado con éxito!", 
+                "video_url": video_url
+            })
 
-                    # Esperamos a que la operación termine
-                    while not operation.done:
-                        time.sleep(10)
-                        operation = client.operations.get(operation.name)
-                        st.write("Sigo trabajando en ello... 🔨")
-
-                    # Mostramos el resultado
-                    video_uri = operation.result.video.uri
-                    st.subheader("¡Tu video está listo!")
-                    st.video(video_uri)
-                    st.balloons()
-
-                except Exception as e:
-                    # Si el error persiste, es probable que el modelo no esté disponible 
-                    # en tu región o cuenta de API específica todavía.
-                    st.error(f"❌ Error en la Pokédex: {e}")
-                    st.info("Nota: La generación de video (Veo) está en despliegue gradual.")
-        else:
-            st.warning("Escribe una descripción primero.")
-else:
-    st.warning("Introduce tu API Key para comenzar.")
+        except Exception as e:
+            st.error(f"Hubo un error con Google Veo: {e}")
