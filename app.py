@@ -41,7 +41,7 @@ if prompt := st.chat_input("Ej: Un Charizard volando sobre un volcán activo en 
             # Llamada a Google Veo (Modelo 'veo-001' o similar según disponibilidad)
             # Nota: Veo suele requerir un proceso asíncrono o de espera
             operation = client.models.generate_video(
-                model='veo-001',
+                model='veo-3.1-fast-generate-preview',
                 prompt=f"A Pokémon video of: {prompt}, high quality, 4k, cinematic animation",
             )
             
